@@ -4,10 +4,10 @@ java_version: 17
 spring_boot_version: 3.2
 github_repo: https://github.com/shinenew8707-afk/DeviceDetails.git
 default_branch: main
-current_stage: 4
-current_stage_name: code_review_completed
-last_completed_stage: 3
-last_completed_stage_name: code_generated
+current_stage: 5
+current_stage_name: tests_generated
+last_completed_stage: 4
+last_completed_stage_name: code_review_completed
 stages:
   - number: 1
     name: requirements_generated
@@ -75,8 +75,8 @@ stages:
     branch: pipeline/MVNO-001/4-code-review
     pr_number: 4
     pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/4
-    pr_state: open
-    human_confirmed: false
+    pr_state: merged
+    human_confirmed: true
     artifacts:
       - docs/reviews/code-review-1.md
     fixes_applied:
