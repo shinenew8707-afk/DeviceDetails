@@ -4,8 +4,21 @@ java_version: 17
 spring_boot_version: 3.2
 github_repo: https://github.com/shinenew8707-afk/DeviceDetails.git
 default_branch: main
-current_stage: 0
-current_stage_name: input_received
-last_completed_stage: null
-last_completed_stage_name: null
-stages: []
+current_stage: 1
+current_stage_name: requirements_generated
+last_completed_stage: 0
+last_completed_stage_name: input_received
+stages:
+  - number: 1
+    name: requirements_generated
+    agent: requirement_agent
+    branch: pipeline/MVNO-001/1-requirements
+    pr_number: 1
+    pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/1
+    pr_state: open
+    human_confirmed: false
+    artifacts:
+      - docs/requirements/functional-requirements.md
+      - docs/requirements/non-functional-requirements.md
+      - docs/requirements/user-stories.md
+      - docs/requirements/acceptance-criteria.md
