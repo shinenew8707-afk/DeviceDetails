@@ -4,10 +4,10 @@ java_version: 17
 spring_boot_version: 3.2
 github_repo: https://github.com/shinenew8707-afk/DeviceDetails.git
 default_branch: main
-current_stage: 3
-current_stage_name: code_generated
-last_completed_stage: 2
-last_completed_stage_name: design_generated
+current_stage: 4
+current_stage_name: code_review_completed
+last_completed_stage: 3
+last_completed_stage_name: code_generated
 stages:
   - number: 1
     name: requirements_generated
@@ -45,8 +45,8 @@ stages:
     branch: pipeline/MVNO-001/3-code
     pr_number: 3
     pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/3
-    pr_state: open
-    human_confirmed: false
+    pr_state: merged
+    human_confirmed: true
     artifacts:
       - pom.xml
       - Dockerfile
