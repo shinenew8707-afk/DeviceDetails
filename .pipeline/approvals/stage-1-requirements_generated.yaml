@@ -1,0 +1,12 @@
+stage: 1
+stage_name: requirements_generated
+agent: requirement_agent
+pr_number: 1
+pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/1
+pr_state: merged
+merged_at: "2026-05-11T12:38:30Z"
+merge_commit: 592298c1ff56c8fae0aea153e0e3215613e15b6b
+human_confirmed: true
+confirmed_by: terminal — "APPROVED stage-1"
+confirmed_at: "2026-05-11"
+orchestrator_signed: true
