@@ -22,3 +22,20 @@ stages:
       - docs/requirements/non-functional-requirements.md
       - docs/requirements/user-stories.md
       - docs/requirements/acceptance-criteria.md
+  - number: 2
+    name: design_generated
+    agent: designer_agent
+    branch: pipeline/MVNO-001/2-design
+    pr_number: 2
+    pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/2
+    pr_state: open
+    human_confirmed: false
+    artifacts:
+      - docs/design/architecture.md
+      - docs/design/data-model.md
+      - docs/design/api/openapi.yaml
+      - docs/design/sequence-diagrams/happy-path.mmd
+      - docs/design/sequence-diagrams/vendor-unavailable.mmd
+      - docs/design/sequence-diagrams/auth-failure.mmd
+      - docs/design/adr/ADR-0001-resilience-strategy.md
+      - docs/design/adr/ADR-0002-auth-strategy.md
