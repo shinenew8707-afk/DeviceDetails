@@ -1,0 +1,11 @@
+ticket_id: MVNO-001
+service_name: device-details-service
+java_version: 17
+spring_boot_version: 3.2
+github_repo: https://github.com/shinenew8707-afk/DeviceDetails.git
+default_branch: main
+current_stage: 0
+current_stage_name: input_received
+last_completed_stage: null
+last_completed_stage_name: null
+stages: []
