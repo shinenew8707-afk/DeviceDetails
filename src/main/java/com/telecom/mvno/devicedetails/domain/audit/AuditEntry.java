@@ -5,7 +5,7 @@ import java.time.Instant;
 public class AuditEntry {
 
     public enum Outcome {
-        SUCCESS, NOT_FOUND, VENDOR_ERROR, AUTH_FAILURE, VALIDATION_ERROR, CACHE_HIT
+        SUCCESS, NOT_FOUND, VENDOR_ERROR, AUTH_FAILURE, VALIDATION_ERROR, CACHE_HIT, INTERNAL_ERROR
     }
 
     private String correlationId;
