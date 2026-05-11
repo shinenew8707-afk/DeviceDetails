@@ -90,6 +90,6 @@ public class AuditLogFilter extends OncePerRequestFilter {
         } else if (status == 503) {
             return AuditEntry.Outcome.VENDOR_ERROR;
         }
-        return AuditEntry.Outcome.VENDOR_ERROR;
+        return AuditEntry.Outcome.INTERNAL_ERROR;
     }
 }

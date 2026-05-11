@@ -27,8 +27,10 @@ public class GlobalExceptionHandler {
                         fe.getRejectedValue() != null ? fe.getRejectedValue().toString() : null,
                         fe.getDefaultMessage()))
                 .toList();
+        String errorCode = violations.stream().anyMatch(v -> "msisdn".equals(v.field()))
+                ? "INVALID_MSISDN" : "INVALID_MVNO_NAME";
         return ResponseEntity.badRequest()
-                .body(new ApiErrorResponse("INVALID_MSISDN", "Validation failed", correlationId(), violations));
+                .body(new ApiErrorResponse(errorCode, "Validation failed", correlationId(), violations));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
