@@ -4,10 +4,10 @@ java_version: 17
 spring_boot_version: 3.2
 github_repo: https://github.com/shinenew8707-afk/DeviceDetails.git
 default_branch: main
-current_stage: 2
-current_stage_name: design_generated
-last_completed_stage: 1
-last_completed_stage_name: requirements_generated
+current_stage: 3
+current_stage_name: code_generated
+last_completed_stage: 2
+last_completed_stage_name: design_generated
 stages:
   - number: 1
     name: requirements_generated
@@ -22,3 +22,20 @@ stages:
       - docs/requirements/non-functional-requirements.md
       - docs/requirements/user-stories.md
       - docs/requirements/acceptance-criteria.md
+  - number: 2
+    name: design_generated
+    agent: designer_agent
+    branch: pipeline/MVNO-001/2-design
+    pr_number: 2
+    pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/2
+    pr_state: merged
+    human_confirmed: true
+    artifacts:
+      - docs/design/architecture.md
+      - docs/design/data-model.md
+      - docs/design/api/openapi.yaml
+      - docs/design/sequence-diagrams/happy-path.mmd
+      - docs/design/sequence-diagrams/vendor-unavailable.mmd
+      - docs/design/sequence-diagrams/auth-failure.mmd
+      - docs/design/adr/ADR-0001-resilience-strategy.md
+      - docs/design/adr/ADR-0002-auth-strategy.md
