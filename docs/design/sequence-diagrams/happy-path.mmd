@@ -1,0 +1,74 @@
+sequenceDiagram
+    autonumber
+
+    participant MC as MVNOClient
+    participant CIF as CorrelationIdFilter
+    participant SF as SecurityFilter
+    participant TIF as TenantIsolationFilter
+    participant DDC as DeviceDetailsController
+    participant DDS as DeviceDetailsService
+    participant VC as VendorClient
+    participant VB as VendorBackend
+    participant ALS as AuditLogService
+
+    MC->>+CIF: GET /api/v1/devices?msisdn=+12125551234&mvno=MVNO-A<br/>X-API-Key: <key> (or Authorization: Bearer <jwt>)
+
+    note over CIF: Read X-Correlation-Id header.<br/>Header absent → generate UUID v4.<br/>Set MDC[correlationId].<br/>Queue response header X-Correlation-Id.
+
+    CIF->>+SF: forward request (correlationId in MDC)
+
+    note over SF: Detect auth mechanism:<br/>X-API-Key header present → ApiKeyAuthFilter path<br/>Authorization: Bearer present → JWT path
+
+    alt API Key authentication
+        SF->>SF: Hash inbound key with BCrypt<br/>Lookup MvnoCredentialStore by hash<br/>Resolve MvnoCredential (mvnoId, credentialId)
+        SF->>SF: Populate SecurityContext with<br/>Authentication(principal=MVNO-A, credentialId=...)
+    else JWT Bearer authentication
+        SF->>SF: Validate JWT signature against JWKS endpoint<br/>Extract mvno claim from token payload<br/>Populate SecurityContext with Authentication(principal=MVNO-A)
+    end
+
+    SF->>+TIF: forward request (SecurityContext populated)
+
+    note over TIF: Extract authenticated MVNO from SecurityContext.<br/>Compare (case-insensitive) with mvno query param.
+
+    TIF->>TIF: authenticated MVNO = "MVNO-A"<br/>requested mvno = "MVNO-A" → MATCH
+
+    TIF->>+DDC: forward request (all checks passed)
+
+    DDC->>DDC: Validate @RequestParam constraints<br/>msisdn matches E.164 pattern ✓<br/>mvno not blank ✓
+
+    DDC->>+DDS: getDeviceDetails(msisdn="+12125551234", mvno="MVNO-A")
+
+    note over DDS: Check cache (if enabled).<br/>Cache miss → proceed to vendor call.
+
+    DDS->>+VC: fetchDeviceDetails(mvno="MVNO-A", msisdn="+12125551234")
+
+    note over VC: Apply Resilience4j decorators:<br/>TimeLimiter(5s) + Retry(max=3) + CircuitBreaker<br/>Build WebClient request with vendor auth headers.
+
+    VC->>+VB: GET /vendor/api/device?msisdn=+12125551234<br/>Authorization: Bearer <vendor-token><br/>X-Request-Id: <correlationId>
+
+    VB-->>-VC: 200 OK<br/>{ subscriberId, msisdn, deviceName, manufacturer,<br/>  modelNumber, volteEnabled, imei, imsi, attributes }
+
+    VC->>VC: Map HTTP 200 → VendorDeviceResponse<br/>Circuit breaker records success
+
+    VC-->>-DDS: VendorDeviceResponse
+
+    DDS->>DDS: ResponseMapper.map(vendorResponse, correlationId)<br/>→ DeviceDetailsResponse<br/>{ msisdn, mvno, deviceName, make, model,<br/>  hasVolte, imei, imsi, additionalAttributes, correlationId }
+
+    note over DDS: If cache enabled → store DeviceDetailsResponse<br/>with key "MVNO-A:+12125551234", TTL=300s.
+
+    DDS-->>-DDC: DeviceDetailsResponse
+
+    DDC->>DDC: Set response header X-Correlation-Id from MDC<br/>Wrap in ResponseEntity<200>
+
+    DDC-->>-TIF: ResponseEntity<DeviceDetailsResponse>(200)
+    TIF-->>-SF: pass through
+    SF-->>-CIF: pass through
+
+    CIF->>CIF: Write X-Correlation-Id to response headers
+    CIF-->>-MC: 200 OK<br/>X-Correlation-Id: <uuid><br/>Content-Type: application/json<br/>{ msisdn, mvno, deviceName, make, model,<br/>  hasVolte, imei, imsi, additionalAttributes, correlationId }
+
+    note over ALS: AuditLogFilter captures: correlationId, timestamp,<br/>mvno, masked MSISDN, callerIp, credentialId,<br/>httpMethod, endpoint, responseStatus=200,<br/>durationMs, outcome=SUCCESS
+
+    CIF-->>+ALS: AuditEntry(outcome=SUCCESS, responseStatus=200, durationMs=142)
+    ALS->>ALS: Mask MSISDN: +12125551234 → +1212****1234<br/>Serialize AuditEntry to JSON<br/>Async write to audit log appender
+    ALS-->>-CIF: (async, fire-and-forget)

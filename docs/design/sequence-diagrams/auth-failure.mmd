@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+    participant MC as MVNOClient
+    participant CF as CorrelationIdFilter
+    participant SF as SecurityFilter
+    participant TF as TenantIsolationFilter
+    participant DC as DeviceDetailsController
+    participant AL as AuditLogService
+
+    Note over MC,AL: Flow A — Missing or Invalid Credentials (401 AUTHENTICATION_FAILED)
+
+    MC->>CF: GET /api/v1/devices?msisdn=+14155551234&mvno=acme-mobile (no credentials or bad API key)
+    CF->>CF: Extract or generate X-Correlation-Id
+    CF->>SF: forward with correlationId in MDC
+
+    SF->>SF: Attempt to resolve API Key from X-API-Key header → not found / invalid
+    SF->>SF: Attempt to resolve JWT from Authorization: Bearer header → not found / invalid
+    SF->>AL: auditLog(correlationId, msisdn_masked, mvno, 401, AUTH_FAILURE, durationMs)
+    AL-->>SF: logged
+
+    SF-->>MC: HTTP 401 {"errorCode":"AUTHENTICATION_FAILED","message":"Valid API key or OAuth2 bearer token is required.","correlationId":"<uuid>"}
+    Note right of MC: X-Correlation-Id header included in response
+
+    Note over MC,AL: Flow B — Valid Credentials but Wrong MVNO (403 ACCESS_DENIED)
+
+    MC->>CF: GET /api/v1/devices?msisdn=+14155551234&mvno=rival-mobile (valid API key for acme-mobile)
+    CF->>CF: Extract or generate X-Correlation-Id
+    CF->>SF: forward with correlationId in MDC
+
+    SF->>SF: Validate API Key → resolves identity to mvno=acme-mobile (VALID)
+    SF->>TF: forward (auth resolved: authenticated.mvno=acme-mobile)
+
+    TF->>TF: Assert request.mvno (rival-mobile) == authenticated.mvno (acme-mobile)
+    TF->>TF: MISMATCH → deny access
+
+    TF->>AL: auditLog(correlationId, msisdn_masked, rival-mobile, 403, AUTH_FAILURE, durationMs, callerIp, credentialId)
+    AL-->>TF: logged
+
+    TF-->>MC: HTTP 403 {"errorCode":"ACCESS_DENIED","message":"Authenticated identity does not match the requested MVNO.","correlationId":"<uuid>"}
+    Note right of MC: X-Correlation-Id header included in response
+    Note right of MC: No device data returned under any condition

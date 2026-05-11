@@ -1,0 +1,561 @@
+openapi: 3.0.3
+
+info:
+  title: Device Details API
+  version: 1.0.0
+  description: |
+    Enterprise MVNO Device Details Service — provides authenticated MVNO operators
+    with subscriber device information sourced from a third-party vendor backend.
+
+    ## Authentication
+    Two authentication mechanisms are supported. Exactly one must be present per request:
+    - **API Key**: Pass the raw API key in the `X-API-Key` request header.
+    - **OAuth2 JWT Bearer**: Pass a valid JWT issued by the configured OAuth2 identity
+      provider in the `Authorization: Bearer <token>` header.
+
+    Both mechanisms resolve the authenticated MVNO identity, which must match the `mvno`
+    query parameter (tenant isolation).
+
+    ## Versioning
+    The API is versioned under `/api/v1/`. Breaking changes will increment the version prefix.
+
+    ## Correlation
+    Every request and response includes a `X-Correlation-Id` header. If the client sends
+    this header, the same value is echoed back. Otherwise a UUID is generated server-side.
+    Use this ID when raising support tickets.
+
+    ## PII Notice
+    MSISDN, IMEI, and IMSI are treated as PII. They are not persisted, not logged in
+    plain form, and appear only in the API response payload over TLS.
+
+contact:
+  name: Telecom Platform Engineering
+  email: platform-eng@telecom.internal
+
+license:
+  name: Internal Use Only
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.{tenant}.telecom.internal/device-details
+    description: Production (per-tenant subdomain)
+    variables:
+      tenant:
+        default: mvno-a
+        description: MVNO tenant slug
+
+tags:
+  - name: Device Details
+    description: Subscriber device lookup operations
+  - name: Health
+    description: Liveness and readiness probes (no authentication required)
+
+paths:
+  /api/v1/devices:
+    get:
+      tags:
+        - Device Details
+      summary: Get device details for a subscriber
+      description: |
+        Returns canonical device details for the subscriber identified by the provided
+        MSISDN, scoped to the specified MVNO tenant.
+
+        **Tenant isolation**: The authenticated MVNO identity (resolved from the API Key
+        or JWT) must match the `mvno` query parameter. Mismatches result in 403.
+
+        **Resilience**: Vendor backend calls are protected by a circuit breaker, retry
+        with exponential backoff, and a configurable timeout. If the vendor is unavailable
+        after all retry attempts, 503 is returned.
+
+        **Caching**: If configured, a per-(mvno, msisdn) response cache with configurable
+        TTL may serve the response without contacting the vendor backend.
+      operationId: getDeviceDetails
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: msisdn
+          in: query
+          required: true
+          description: |
+            Mobile subscriber number in E.164 format (e.g., +12125551234).
+            Must start with `+` followed by the country code and subscriber number.
+            Total length: 8 to 16 characters.
+          schema:
+            type: string
+            pattern: '^\+[1-9]\d{6,14}$'
+            example: "+12125551234"
+        - name: mvno
+          in: query
+          required: true
+          description: |
+            MVNO tenant identifier. Must match the authenticated MVNO identity
+            resolved from the provided credential. Case-insensitive comparison.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+            example: "MVNO-A"
+        - name: X-Correlation-Id
+          in: header
+          required: false
+          description: |
+            Optional client-supplied correlation ID. If present, the same value is
+            returned in the response header. If absent, a UUID v4 is generated.
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Device details retrieved successfully.
+          headers:
+            X-Correlation-Id:
+              description: Correlation ID for request tracing.
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceDetailsResponse'
+              example:
+                msisdn: "+12125551234"
+                mvno: "MVNO-A"
+                deviceName: "iPhone 15 Pro"
+                make: "Apple"
+                model: "A2849"
+                hasVolte: true
+                imei: "490154203237518"
+                imsi: "310260123456789"
+                additionalAttributes:
+                  networkType: "5G"
+                  simType: "eSIM"
+                correlationId: "550e8400-e29b-41d4-a716-446655440000"
+        "400":
+          description: |
+            Request validation failure. One or more query parameters failed validation.
+            The `violations` array contains field-level details.
+          headers:
+            X-Correlation-Id:
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              examples:
+                invalidMsisdn:
+                  summary: MSISDN fails E.164 pattern
+                  value:
+                    errorCode: "INVALID_MSISDN"
+                    message: "The provided MSISDN does not conform to E.164 format"
+                    correlationId: "550e8400-e29b-41d4-a716-446655440000"
+                    violations:
+                      - field: "msisdn"
+                        rejectedValue: "12125551234"
+                        reason: "must match pattern '^\\+[1-9]\\d{6,14}$'"
+                invalidMvno:
+                  summary: MVNO name is blank
+                  value:
+                    errorCode: "INVALID_MVNO_NAME"
+                    message: "The mvno parameter must not be blank"
+                    correlationId: "550e8400-e29b-41d4-a716-446655440000"
+                    violations:
+                      - field: "mvno"
+                        rejectedValue: ""
+                        reason: "must not be blank"
+        "401":
+          description: |
+            Authentication failed. The request does not contain a valid API Key or
+            JWT Bearer token, or the credentials have expired or been revoked.
+          headers:
+            X-Correlation-Id:
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                errorCode: "AUTHENTICATION_FAILED"
+                message: "Authentication credentials are missing or invalid"
+                correlationId: "550e8400-e29b-41d4-a716-446655440000"
+                violations: null
+        "403":
+          description: |
+            Access denied. The authenticated MVNO identity does not match the
+            `mvno` query parameter (tenant isolation violation).
+          headers:
+            X-Correlation-Id:
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                errorCode: "ACCESS_DENIED"
+                message: "Authenticated MVNO identity does not match the requested MVNO tenant"
+                correlationId: "550e8400-e29b-41d4-a716-446655440000"
+                violations: null
+        "404":
+          description: |
+            Subscriber not found. The vendor backend returned no record for the
+            provided MSISDN under the specified MVNO.
+          headers:
+            X-Correlation-Id:
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                errorCode: "SUBSCRIBER_NOT_FOUND"
+                message: "No subscriber record found for the provided MSISDN"
+                correlationId: "550e8400-e29b-41d4-a716-446655440000"
+                violations: null
+        "503":
+          description: |
+            Vendor backend unavailable. All retry attempts have been exhausted, or the
+            circuit breaker is in the OPEN state due to a high failure rate. Retry the
+            request after the indicated delay.
+          headers:
+            X-Correlation-Id:
+              schema:
+                type: string
+                format: uuid
+            Retry-After:
+              description: Seconds to wait before retrying (circuit breaker open duration).
+              schema:
+                type: integer
+                example: 30
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                errorCode: "VENDOR_UNAVAILABLE"
+                message: "The vendor backend is temporarily unavailable. Please retry later."
+                correlationId: "550e8400-e29b-41d4-a716-446655440000"
+                violations: null
+        "500":
+          description: |
+            Internal server error. An unexpected condition prevented the service from
+            fulfilling the request.
+          headers:
+            X-Correlation-Id:
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              example:
+                errorCode: "INTERNAL_ERROR"
+                message: "An unexpected internal error occurred"
+                correlationId: "550e8400-e29b-41d4-a716-446655440000"
+                violations: null
+
+  /actuator/health:
+    get:
+      tags:
+        - Health
+      summary: Aggregate health check
+      description: |
+        Returns aggregate health status of the service and all registered health indicators.
+        No authentication required. Used by load balancers and monitoring systems.
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "UP"
+                components:
+                  diskSpace:
+                    status: "UP"
+                  ping:
+                    status: "UP"
+                  circuitBreakers:
+                    status: "UP"
+        "503":
+          description: Service or a downstream dependency is unhealthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "DOWN"
+                components:
+                  circuitBreakers:
+                    status: "DOWN"
+                    details:
+                      vendorBackend:
+                        status: "CIRCUIT_OPEN"
+
+  /actuator/health/liveness:
+    get:
+      tags:
+        - Health
+      summary: Kubernetes liveness probe
+      description: |
+        Returns UP if the application process is alive and the JVM is responsive.
+        Used by Kubernetes to determine if the pod should be restarted.
+        No authentication required.
+      operationId: getLiveness
+      security: []
+      responses:
+        "200":
+          description: Application is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "UP"
+        "503":
+          description: Application is not alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /actuator/health/readiness:
+    get:
+      tags:
+        - Health
+      summary: Kubernetes readiness probe
+      description: |
+        Returns UP when the application is ready to serve traffic.
+        Readiness checks include vendor backend connectivity and circuit breaker state.
+        Kubernetes will stop routing traffic to a pod failing this probe.
+        No authentication required.
+      operationId: getReadiness
+      security: []
+      responses:
+        "200":
+          description: Application is ready to serve traffic.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "UP"
+        "503":
+          description: Application is not ready to serve traffic.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "OUT_OF_SERVICE"
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        MVNO-specific API key. The key is validated against a BCrypt hash stored in
+        Kubernetes Secrets. The MVNO identity is derived from the key's registered
+        credential record. Provide exactly one of ApiKeyAuth or BearerAuth.
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        OAuth2 JWT Bearer token issued by the configured identity provider.
+        The token must contain an `mvno` claim (or `sub` in the absence of custom claims)
+        that identifies the authenticated MVNO tenant. The token signature is validated
+        against the JWKS endpoint configured in the service. Provide exactly one of
+        ApiKeyAuth or BearerAuth.
+
+  schemas:
+    DeviceDetailsResponse:
+      type: object
+      description: |
+        Canonical device details response. All device data fields are nullable to
+        accommodate partial vendor data. PII fields (imei, imsi) are present in the
+        response payload but are not persisted or logged by the service.
+      required:
+        - msisdn
+        - mvno
+        - correlationId
+      properties:
+        msisdn:
+          type: string
+          description: Mobile subscriber number (E.164 format). Echo of the request parameter.
+          example: "+12125551234"
+        mvno:
+          type: string
+          description: MVNO tenant identifier. Echo of the request parameter.
+          example: "MVNO-A"
+        deviceName:
+          type: string
+          nullable: true
+          description: Human-readable device name.
+          example: "iPhone 15 Pro"
+        make:
+          type: string
+          nullable: true
+          description: Device manufacturer name.
+          example: "Apple"
+        model:
+          type: string
+          nullable: true
+          description: Device model identifier.
+          example: "A2849"
+        hasVolte:
+          type: boolean
+          nullable: true
+          description: Whether the device supports Voice over LTE (VoLTE).
+          example: true
+        imei:
+          type: string
+          nullable: true
+          description: |
+            International Mobile Equipment Identity (15 digits). PII — transmitted
+            over TLS only; not logged or persisted by this service.
+          example: "490154203237518"
+        imsi:
+          type: string
+          nullable: true
+          description: |
+            International Mobile Subscriber Identity (15 digits). PII — transmitted
+            over TLS only; not logged or persisted by this service.
+          example: "310260123456789"
+        additionalAttributes:
+          type: object
+          nullable: true
+          description: |
+            Vendor-specific extended attributes as key-value pairs. Content varies
+            by vendor configuration and MVNO agreement.
+          additionalProperties:
+            type: object
+          example:
+            networkType: "5G"
+            simType: "eSIM"
+            deviceOs: "iOS 17"
+        correlationId:
+          type: string
+          format: uuid
+          description: Request correlation ID. Matches the X-Correlation-Id response header.
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+    ApiErrorResponse:
+      type: object
+      description: Uniform error response envelope for all 4xx and 5xx responses.
+      required:
+        - errorCode
+        - message
+        - correlationId
+      properties:
+        errorCode:
+          type: string
+          description: Machine-readable error classification code.
+          enum:
+            - INVALID_MSISDN
+            - INVALID_MVNO_NAME
+            - AUTHENTICATION_FAILED
+            - ACCESS_DENIED
+            - SUBSCRIBER_NOT_FOUND
+            - VENDOR_UNAVAILABLE
+            - INTERNAL_ERROR
+          example: "SUBSCRIBER_NOT_FOUND"
+        message:
+          type: string
+          description: Human-readable description of the error. Do not parse programmatically.
+          example: "No subscriber record found for the provided MSISDN"
+        correlationId:
+          type: string
+          format: uuid
+          description: Correlation ID for tracing this request. Include when raising support tickets.
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        violations:
+          type: array
+          nullable: true
+          description: |
+            Field-level validation violation details. Present only for 400 responses.
+            Null for all other error types.
+          items:
+            $ref: '#/components/schemas/Violation'
+
+    Violation:
+      type: object
+      description: A single field-level validation constraint violation.
+      required:
+        - field
+        - reason
+      properties:
+        field:
+          type: string
+          description: Name of the request parameter or field that failed validation.
+          example: "msisdn"
+        rejectedValue:
+          type: string
+          nullable: true
+          description: The value that was submitted and rejected. May be null if the field was absent.
+          example: "12125551234"
+        reason:
+          type: string
+          description: Description of the violated constraint.
+          example: "must match pattern '^\\+[1-9]\\d{6,14}$'"
+
+    HealthResponse:
+      type: object
+      description: Spring Boot Actuator health response structure.
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: |
+            Aggregate health status.
+            - `UP`: All components healthy.
+            - `DOWN`: One or more components unhealthy.
+            - `OUT_OF_SERVICE`: Service is intentionally not serving traffic.
+            - `UNKNOWN`: Health cannot be determined.
+          enum:
+            - UP
+            - DOWN
+            - OUT_OF_SERVICE
+            - UNKNOWN
+          example: "UP"
+        components:
+          type: object
+          nullable: true
+          description: Per-component health details. Keys are component names.
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum:
+                  - UP
+                  - DOWN
+                  - OUT_OF_SERVICE
+                  - UNKNOWN
+              details:
+                type: object
+                additionalProperties:
+                  type: object
+          example:
+            diskSpace:
+              status: "UP"
+            ping:
+              status: "UP"
+            circuitBreakers:
+              status: "UP"
