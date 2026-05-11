@@ -39,3 +39,33 @@ stages:
       - docs/design/sequence-diagrams/auth-failure.mmd
       - docs/design/adr/ADR-0001-resilience-strategy.md
       - docs/design/adr/ADR-0002-auth-strategy.md
+  - number: 3
+    name: code_generated
+    agent: developer_agent
+    branch: pipeline/MVNO-001/3-code
+    pr_number: 3
+    pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/3
+    pr_state: open
+    human_confirmed: false
+    artifacts:
+      - pom.xml
+      - Dockerfile
+      - .github/workflows/ci.yml
+      - .gitignore
+      - README.md
+      - src/main/java/com/telecom/mvno/devicedetails/DeviceDetailsApplication.java
+      - src/main/java/com/telecom/mvno/devicedetails/api/DeviceDetailsController.java
+      - src/main/java/com/telecom/mvno/devicedetails/service/DeviceDetailsService.java
+      - src/main/java/com/telecom/mvno/devicedetails/service/TenantIsolationService.java
+      - src/main/java/com/telecom/mvno/devicedetails/client/VendorClient.java
+      - src/main/java/com/telecom/mvno/devicedetails/mapper/ResponseMapper.java
+      - src/main/java/com/telecom/mvno/devicedetails/security/SecurityConfig.java
+      - src/main/java/com/telecom/mvno/devicedetails/security/ApiKeyAuthFilter.java
+      - src/main/java/com/telecom/mvno/devicedetails/security/MvnoCredentialStore.java
+      - src/main/java/com/telecom/mvno/devicedetails/security/JwtAuthenticationConverter.java
+      - src/main/java/com/telecom/mvno/devicedetails/exception/GlobalExceptionHandler.java
+      - src/main/java/com/telecom/mvno/devicedetails/audit/AuditLogService.java
+      - src/main/java/com/telecom/mvno/devicedetails/audit/AuditLogFilter.java
+      - src/main/java/com/telecom/mvno/devicedetails/filter/CorrelationIdFilter.java
+      - src/main/resources/application.yml
+      - src/main/resources/logback-spring.xml

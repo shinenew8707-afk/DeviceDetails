@@ -1,0 +1,89 @@
+spring:
+  application:
+    name: device-details-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_ISSUER_URI:http://localhost:9000}
+  cache:
+    type: caffeine
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info,loggers
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+device-details:
+  vendor:
+    base-url: ${VENDOR_BASE_URL:http://localhost:9001}
+    device-path: /devices
+    auth-header-name: ${VENDOR_AUTH_HEADER_NAME:X-Vendor-Api-Key}
+    auth-header-value: ${VENDOR_AUTH_HEADER_VALUE:changeme}
+    connect-timeout-ms: ${VENDOR_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${VENDOR_READ_TIMEOUT_MS:5000}
+  security:
+    api-keys: {}
+  cache:
+    enabled: ${CACHE_ENABLED:false}
+    ttl-seconds: ${CACHE_TTL_SECONDS:300}
+    max-size: ${CACHE_MAX_SIZE:10000}
+
+resilience4j:
+  timelimiter:
+    instances:
+      vendorBackend:
+        timeoutDuration: ${RESILIENCE_TIMEOUT_DURATION:5s}
+  retry:
+    instances:
+      vendorBackend:
+        maxAttempts: ${RESILIENCE_RETRY_MAX_ATTEMPTS:3}
+        waitDuration: ${RESILIENCE_RETRY_WAIT_DURATION:500ms}
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: ${RESILIENCE_RETRY_MULTIPLIER:2.0}
+        maxWaitDuration: ${RESILIENCE_RETRY_MAX_WAIT_DURATION:4s}
+        retryExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.reactive.function.client.WebClientResponseException$ServiceUnavailable
+          - org.springframework.web.reactive.function.client.WebClientResponseException$InternalServerError
+  circuitbreaker:
+    instances:
+      vendorBackend:
+        slidingWindowSize: ${RESILIENCE_CB_SLIDING_WINDOW_SIZE:20}
+        failureRateThreshold: ${RESILIENCE_CB_FAILURE_RATE_THRESHOLD:50}
+        waitDurationInOpenState: ${RESILIENCE_CB_WAIT_DURATION_OPEN:30s}
+        permittedNumberOfCallsInHalfOpenState: ${RESILIENCE_CB_HALF_OPEN_CALLS:3}
+        slowCallDurationThreshold: 3s
+        slowCallRateThreshold: 80
+        registerHealthIndicator: true
+
+logging:
+  level:
+    root: INFO
+    com.telecom.mvno.devicedetails: INFO
+    AUDIT: INFO
