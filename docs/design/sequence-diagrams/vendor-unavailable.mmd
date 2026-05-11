@@ -1,0 +1,50 @@
+sequenceDiagram
+    autonumber
+    participant MC as MVNOClient
+    participant CF as CorrelationIdFilter
+    participant SF as SecurityFilter
+    participant TF as TenantIsolationFilter
+    participant DC as DeviceDetailsController
+    participant DS as DeviceDetailsService
+    participant VC as VendorClient
+    participant VB as VendorBackend
+    participant AL as AuditLogService
+
+    MC->>CF: GET /api/v1/devices?msisdn=+14155551234&mvno=acme-mobile
+    CF->>CF: Extract or generate X-Correlation-Id (UUID)
+    CF->>SF: forward with correlationId in MDC
+
+    SF->>SF: Validate API Key / JWT bearer token
+    SF->>TF: forward (auth resolved: mvno=acme-mobile)
+
+    TF->>TF: Assert request.mvno == authenticated.mvno
+    TF->>DC: forward (tenant validated)
+
+    DC->>DS: queryDevice(msisdn, mvno, correlationId)
+
+    Note over VC,VB: Attempt 1 of 3
+    DS->>VC: fetchDeviceDetails(msisdn, correlationId)
+    VC->>VB: GET /vendor/devices?msisdn=+14155551234
+    VB-->>VC: 503 Service Unavailable (or timeout)
+    VC->>VC: Resilience4j: record failure, schedule retry (backoff 500ms)
+
+    Note over VC,VB: Attempt 2 of 3 (backoff 500ms)
+    VC->>VB: GET /vendor/devices?msisdn=+14155551234
+    VB-->>VC: 503 Service Unavailable
+    VC->>VC: Resilience4j: record failure, schedule retry (backoff 1000ms)
+
+    Note over VC,VB: Attempt 3 of 3 (backoff 1000ms)
+    VC->>VB: GET /vendor/devices?msisdn=+14155551234
+    VB-->>VC: 503 Service Unavailable
+    VC->>VC: Resilience4j: failure rate >= threshold → CircuitBreaker OPENS
+
+    VC-->>DS: throw VendorUnavailableException
+    DS-->>DC: propagate VendorUnavailableException
+
+    DC->>AL: auditLog(correlationId, msisdn_masked, mvno, 503, VENDOR_ERROR, durationMs)
+    AL-->>DC: logged (async, non-blocking)
+
+    DC-->>MC: HTTP 503 {"errorCode":"VENDOR_UNAVAILABLE","message":"Device vendor is temporarily unavailable. Please retry later.","correlationId":"<uuid>"}
+    Note right of MC: X-Correlation-Id header included in response
+
+    Note over VC,VB: Subsequent requests fast-fail while CircuitBreaker is OPEN (30s default)
