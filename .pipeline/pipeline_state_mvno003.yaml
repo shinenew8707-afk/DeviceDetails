@@ -9,6 +9,19 @@ current_stage_name: design_generated
 last_completed_stage: 1
 last_completed_stage_name: requirements_generated
 stages:
+  - number: 2
+    name: design_generated
+    agent: designer_agent
+    branch: pipeline/MVNO-003/2-design
+    pr_number: 8
+    pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/8
+    pr_state: open
+    human_confirmed: false
+    artifacts:
+      - docs/design/mvno003-architecture-delta.md
+      - docs/design/api/mvno003-openapi-patch.yaml
+      - docs/design/sequence-diagrams/mvno003-compatibility-check.mmd
+      - docs/design/adr/ADR-0004-band-catalogue-config.md
   - number: 1
     name: requirements_generated
     agent: requirement_agent

@@ -1,0 +1,135 @@
+# OpenAPI Patch — MVNO-003: Device Compatibility Check
+# Fragment extending base openapi.yaml (MVNO-001). Merge when MVNO-003 ships.
+
+paths:
+  /api/v1/devices/{imei}/compatibility:
+    get:
+      tags:
+        - Device Details
+      summary: Check device network compatibility for an MVNO
+      description: |
+        Checks whether a device (identified by IMEI) supports all of the frequency bands
+        required by the specified MVNO network.
+
+        - Returns `compatible: true` when the device supports **all** required bands.
+        - Returns `compatible: false` with `matchedBands` (partial overlap) and a `reason`
+          describing the missing bands.
+        - Device band data is retrieved from the vendor backend — subject to the same
+          circuit-breaker and retry policy as `GET /api/v1/devices`.
+
+        **Authentication:** API Key or JWT Bearer — same as all other endpoints.
+        **Tenant isolation:** Authenticated MVNO identity must match the `mvno` query param.
+      operationId: checkDeviceCompatibility
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: imei
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{15}$'
+          description: 15-digit IMEI of the device to check
+          example: "490154203237518"
+        - name: mvno
+          in: query
+          required: true
+          schema:
+            type: string
+          description: MVNO tenant identifier
+          example: "mvno-a"
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Compatibility check result
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceCompatibilityResponse'
+              examples:
+                compatible:
+                  summary: Device is fully compatible
+                  value:
+                    imei: "490154203237518"
+                    mvno: "mvno-a"
+                    compatible: true
+                    supportedBands: ["B1", "B3", "B7", "B20", "B28"]
+                    requiredBands: ["B1", "B3", "B7", "B20"]
+                    matchedBands: ["B1", "B3", "B7", "B20"]
+                partial_match:
+                  summary: Device is missing required bands
+                  value:
+                    imei: "352000000000001"
+                    mvno: "mvno-a"
+                    compatible: false
+                    supportedBands: ["B1", "B3"]
+                    requiredBands: ["B1", "B3", "B7", "B20"]
+                    matchedBands: ["B1", "B3"]
+                    reason: "Missing bands: B7, B20"
+        "400":
+          description: Invalid IMEI format or missing mvno parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Missing or invalid authentication credentials
+        "403":
+          description: Authenticated identity does not match the mvno query parameter
+        "503":
+          description: Vendor backend unavailable
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                example: 30
+
+components:
+  schemas:
+    DeviceCompatibilityResponse:
+      type: object
+      required:
+        - imei
+        - mvno
+        - compatible
+        - supportedBands
+        - requiredBands
+        - matchedBands
+      properties:
+        imei:
+          type: string
+          example: "490154203237518"
+        mvno:
+          type: string
+          example: "mvno-a"
+        compatible:
+          type: boolean
+        supportedBands:
+          type: array
+          items:
+            type: string
+          example: ["B1", "B3", "B7", "B20", "B28"]
+        requiredBands:
+          type: array
+          items:
+            type: string
+          example: ["B1", "B3", "B7", "B20"]
+        matchedBands:
+          type: array
+          items:
+            type: string
+          example: ["B1", "B3", "B7", "B20"]
+        reason:
+          type: string
+          description: Present only when compatible is false
+          example: "Missing bands: B7, B20"
