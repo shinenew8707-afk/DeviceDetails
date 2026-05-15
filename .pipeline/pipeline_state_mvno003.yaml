@@ -13,8 +13,8 @@ stages:
     name: requirements_generated
     agent: requirement_agent
     branch: pipeline/MVNO-003/1-requirements
-    pr_number: null
-    pr_url: null
+    pr_number: 7
+    pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/7
     pr_state: open
     human_confirmed: false
     artifacts:
