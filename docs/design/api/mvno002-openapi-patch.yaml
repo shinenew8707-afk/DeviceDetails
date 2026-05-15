@@ -1,0 +1,121 @@
+# OpenAPI Patch — MVNO-002: IMEI Validation Endpoint
+# This fragment extends the base openapi.yaml (MVNO-001) with the new endpoint.
+# Merge into the main spec when MVNO-002 is fully shipped.
+
+paths:
+  /api/v1/devices/validate-imei:
+    post:
+      tags:
+        - Device Details
+      summary: Validate an IMEI number
+      description: |
+        Validates the format of an IMEI (International Mobile Equipment Identity)
+        using the Luhn algorithm and length check.
+
+        - Returns `valid: true` if the IMEI is a 15-digit number that passes the Luhn check.
+        - Returns `valid: false` with a `reason` field otherwise.
+        - This endpoint performs **format validation only** — it does not check blocklists
+          or verify registration with the GSMA database.
+
+        **Authentication:** Same API Key / JWT Bearer mechanism as all other endpoints.
+        **Tenant isolation:** Authenticated MVNO identity must be present.
+      operationId: validateImei
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Client-supplied correlation ID; echoed back in the response header.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImeiValidationRequest'
+            examples:
+              valid_imei:
+                summary: A well-formed IMEI
+                value:
+                  imei: "490154203237518"
+              invalid_imei:
+                summary: IMEI that fails Luhn check
+                value:
+                  imei: "490154203237519"
+      responses:
+        "200":
+          description: Validation result (both valid and invalid IMEIs return 200)
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImeiValidationResponse'
+              examples:
+                valid:
+                  value:
+                    imei: "490154203237518"
+                    valid: true
+                invalid:
+                  value:
+                    imei: "490154203237519"
+                    valid: false
+                    reason: "Failed Luhn check"
+        "400":
+          description: Malformed request — IMEI is not 15 digits or contains non-numeric characters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                wrong_length:
+                  value:
+                    status: 400
+                    message: "IMEI must be exactly 15 digits"
+                    correlationId: "550e8400-e29b-41d4-a716-446655440000"
+                non_numeric:
+                  value:
+                    status: 400
+                    message: "IMEI must contain digits only"
+                    correlationId: "550e8400-e29b-41d4-a716-446655440000"
+        "401":
+          description: Missing or invalid authentication credentials
+        "403":
+          description: Authenticated identity does not match required tenant
+
+components:
+  schemas:
+    ImeiValidationRequest:
+      type: object
+      required:
+        - imei
+      properties:
+        imei:
+          type: string
+          pattern: '^\d{15}$'
+          description: 15-digit IMEI number (digits only)
+          example: "490154203237518"
+
+    ImeiValidationResponse:
+      type: object
+      required:
+        - imei
+        - valid
+      properties:
+        imei:
+          type: string
+          description: The IMEI that was validated (echoed from request)
+          example: "490154203237518"
+        valid:
+          type: boolean
+          description: True if the IMEI passed the Luhn check and length validation
+        reason:
+          type: string
+          description: Human-readable explanation when valid is false
+          example: "Failed Luhn check"
