@@ -82,6 +82,25 @@ resilience4j:
         slowCallRateThreshold: 80
         registerHealthIndicator: true
 
+mvno:
+  band-requirements:
+    mvno-a:
+      - B1
+      - B3
+      - B7
+      - B20
+    mvno-b:
+      - B1
+      - B3
+      - B28
+      - B40
+    mvno-c:
+      - B1
+      - B3
+      - B7
+      - B20
+      - B28
+
 logging:
   level:
     root: INFO

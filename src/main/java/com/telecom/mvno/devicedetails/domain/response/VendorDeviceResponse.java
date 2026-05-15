@@ -2,6 +2,7 @@ package com.telecom.mvno.devicedetails.domain.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.util.List;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -14,6 +15,7 @@ public class VendorDeviceResponse {
     private Boolean hasVolte;
     private String imei;
     private String imsi;
+    private List<String> supportedBands;
     private Map<String, Object> additionalAttributes;
 
     public VendorDeviceResponse() {
@@ -52,6 +54,9 @@ public class VendorDeviceResponse {
 
     public String getImsi() { return imsi; }
     public void setImsi(String imsi) { this.imsi = imsi; }
+
+    public List<String> getSupportedBands() { return supportedBands; }
+    public void setSupportedBands(List<String> supportedBands) { this.supportedBands = supportedBands; }
 
     public Map<String, Object> getAdditionalAttributes() { return additionalAttributes; }
     public void setAdditionalAttributes(Map<String, Object> additionalAttributes) {

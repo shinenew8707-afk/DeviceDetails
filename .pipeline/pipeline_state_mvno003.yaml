@@ -4,19 +4,37 @@ java_version: 17
 spring_boot_version: 3.2
 github_repo: https://github.com/shinenew8707-afk/DeviceDetails.git
 default_branch: main
-current_stage: 2
-current_stage_name: design_generated
-last_completed_stage: 1
-last_completed_stage_name: requirements_generated
+current_stage: 3
+current_stage_name: code_generated
+last_completed_stage: 2
+last_completed_stage_name: design_generated
 stages:
+  - number: 3
+    name: code_generated
+    agent: developer_agent
+    branch: pipeline/MVNO-003/3-code
+    pr_number: null
+    pr_url: null
+    pr_state: open
+    human_confirmed: false
+    artifacts:
+      - src/main/java/com/telecom/mvno/devicedetails/api/DeviceCompatibilityController.java
+      - src/main/java/com/telecom/mvno/devicedetails/service/DeviceCompatibilityService.java
+      - src/main/java/com/telecom/mvno/devicedetails/service/MvnoBandCatalogueService.java
+      - src/main/java/com/telecom/mvno/devicedetails/config/BandCatalogueProperties.java
+      - src/main/java/com/telecom/mvno/devicedetails/domain/response/DeviceCompatibilityResponse.java
+      - src/main/java/com/telecom/mvno/devicedetails/exception/UnknownMvnoException.java
+      - src/main/java/com/telecom/mvno/devicedetails/domain/response/VendorDeviceResponse.java
+      - src/main/java/com/telecom/mvno/devicedetails/exception/GlobalExceptionHandler.java
+      - src/main/resources/application.yml
   - number: 2
     name: design_generated
     agent: designer_agent
     branch: pipeline/MVNO-003/2-design
     pr_number: 8
     pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/8
-    pr_state: open
-    human_confirmed: false
+    pr_state: merged
+    human_confirmed: true
     artifacts:
       - docs/design/mvno003-architecture-delta.md
       - docs/design/api/mvno003-openapi-patch.yaml
