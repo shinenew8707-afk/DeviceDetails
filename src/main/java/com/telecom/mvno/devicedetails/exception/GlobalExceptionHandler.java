@@ -79,6 +79,12 @@ public class GlobalExceptionHandler {
                 .body(new ApiErrorResponse("VENDOR_UNAVAILABLE", ex.getMessage(), correlationId(), List.of()));
     }
 
+    @ExceptionHandler(UnknownMvnoException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnknownMvno(UnknownMvnoException ex) {
+        return ResponseEntity.badRequest()
+                .body(new ApiErrorResponse("UNKNOWN_MVNO", ex.getMessage(), correlationId(), List.of()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneric(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
