@@ -9,6 +9,19 @@ current_stage_name: code_generated
 last_completed_stage: 2
 last_completed_stage_name: design_generated
 stages:
+  - number: 3
+    name: code_generated
+    agent: developer_agent
+    branch: pipeline/MVNO-002/3-code
+    pr_number: null
+    pr_url: null
+    pr_state: open
+    human_confirmed: false
+    artifacts:
+      - src/main/java/com/telecom/mvno/devicedetails/api/ImeiValidationController.java
+      - src/main/java/com/telecom/mvno/devicedetails/service/ImeiValidationService.java
+      - src/main/java/com/telecom/mvno/devicedetails/domain/request/ImeiValidationRequest.java
+      - src/main/java/com/telecom/mvno/devicedetails/domain/response/ImeiValidationResponse.java
   - number: 2
     name: design_generated
     agent: designer_agent
