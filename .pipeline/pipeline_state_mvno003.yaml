@@ -13,8 +13,8 @@ stages:
     name: code_generated
     agent: developer_agent
     branch: pipeline/MVNO-003/3-code
-    pr_number: null
-    pr_url: null
+    pr_number: 9
+    pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/9
     pr_state: open
     human_confirmed: false
     artifacts:
