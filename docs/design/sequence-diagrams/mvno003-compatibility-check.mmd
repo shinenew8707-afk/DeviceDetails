@@ -1,0 +1,61 @@
+sequenceDiagram
+    participant C as MVNO Client
+    participant CIF as CorrelationIdFilter
+    participant ALF as AuditLogFilter
+    participant AUTH as ApiKeyAuthFilter
+    participant TIS as TenantIsolationService
+    participant CTRL as DeviceCompatibilityController
+    participant SVC as DeviceCompatibilityService
+    participant BC as MvnoBandCatalogueService
+    participant VC as VendorClient
+    participant MET as Micrometer
+
+    C->>CIF: GET /api/v1/devices/490154203237518/compatibility?mvno=mvno-a
+    CIF->>CIF: Propagate / generate X-Correlation-ID
+    CIF->>ALF: forward
+    ALF->>AUTH: forward
+    AUTH->>AUTH: resolve tenant=mvno-a from API key
+    AUTH->>TIS: verify tenant mvno-a is active
+    TIS-->>AUTH: OK
+    AUTH->>CTRL: forward authenticated request
+
+    CTRL->>CTRL: validate imei (15-digit pattern)
+    CTRL->>CTRL: validate mvno (@NotBlank)
+    CTRL->>SVC: checkCompatibility("490154203237518", "mvno-a")
+
+    SVC->>TIS: assertIdentityMatch("mvno-a")
+    TIS-->>SVC: OK
+
+    SVC->>VC: fetchDeviceDetails("490154203237518", "mvno-a")
+    VC-->>SVC: VendorDeviceResponse{supportedBands: ["B1","B3","B7","B20","B28"]}
+
+    SVC->>BC: getRequiredBands("mvno-a")
+    BC-->>SVC: ["B1","B3","B7","B20"]
+
+    SVC->>SVC: matchedBands = intersection → ["B1","B3","B7","B20"]
+    SVC->>SVC: compatible = matchedBands ⊇ requiredBands → true
+    SVC->>MET: device.compatibility.check.compatible++
+    SVC->>ALF: outcome=COMPATIBLE
+    ALF->>ALF: write audit log (tenant=mvno-a, imei=****7518, outcome=COMPATIBLE)
+
+    SVC-->>CTRL: DeviceCompatibilityResponse{compatible=true, matchedBands=[...]}
+    CTRL-->>C: HTTP 200 {imei, mvno, compatible:true, supportedBands, requiredBands, matchedBands}
+
+    Note over C,MET: Incompatible device path
+    C->>SVC: checkCompatibility("352000000000001", "mvno-a")
+    SVC->>VC: fetchDeviceDetails(...)
+    VC-->>SVC: VendorDeviceResponse{supportedBands: ["B1","B3"]}
+    SVC->>BC: getRequiredBands("mvno-a")
+    BC-->>SVC: ["B1","B3","B7","B20"]
+    SVC->>SVC: matchedBands=["B1","B3"], compatible=false, reason="Missing bands: B7, B20"
+    SVC->>MET: device.compatibility.check.incompatible++
+    SVC-->>CTRL: DeviceCompatibilityResponse{compatible=false, reason="Missing bands: B7, B20"}
+    CTRL-->>C: HTTP 200 {compatible:false, reason:"Missing bands: B7, B20"}
+
+    Note over C,MET: Vendor unavailable path
+    C->>SVC: checkCompatibility("...", "mvno-a")
+    SVC->>VC: fetchDeviceDetails(...)
+    VC-->>SVC: VendorUnavailableException
+    SVC->>MET: device.compatibility.check.vendor_error++
+    SVC-->>CTRL: throws VendorUnavailableException
+    CTRL-->>C: HTTP 503 Retry-After: 30
