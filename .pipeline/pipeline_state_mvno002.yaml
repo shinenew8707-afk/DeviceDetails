@@ -13,8 +13,8 @@ stages:
     name: design_generated
     agent: designer_agent
     branch: pipeline/MVNO-002/2-design
-    pr_number: null
-    pr_url: null
+    pr_number: 6
+    pr_url: https://github.com/shinenew8707-afk/DeviceDetails/pull/6
     pr_state: open
     human_confirmed: false
     artifacts:
