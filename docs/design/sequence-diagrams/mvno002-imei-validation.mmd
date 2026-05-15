@@ -1,0 +1,37 @@
+sequenceDiagram
+    participant C as MVNO Client
+    participant CIF as CorrelationIdFilter
+    participant ALF as AuditLogFilter
+    participant AUTH as ApiKeyAuthFilter
+    participant TIS as TenantIsolationService
+    participant CTRL as ImeiValidationController
+    participant SVC as ImeiValidationService
+    participant MET as Micrometer
+
+    C->>CIF: POST /api/v1/devices/validate-imei\n{imei: "490154203237518"}\nX-API-Key: mvno-a-key
+    CIF->>CIF: Propagate / generate X-Correlation-ID
+    CIF->>ALF: forward
+    ALF->>ALF: record request (masked IMEI, tenant pending)
+    ALF->>AUTH: forward
+    AUTH->>AUTH: resolve tenant from API key
+    AUTH-->>ALF: tenant=mvno-a
+    ALF->>TIS: verify tenant mvno-a
+    TIS-->>ALF: OK
+    ALF->>CTRL: forward authenticated request
+    CTRL->>CTRL: deserialise + Bean Validation (@NotBlank, @Size, @Pattern)
+    CTRL->>SVC: validate("490154203237518")
+    SVC->>SVC: length check (15 digits) ✓
+    SVC->>SVC: Luhn algorithm ✓
+    SVC->>MET: counter imei.validation.success++
+    SVC-->>CTRL: ImeiValidationResponse{valid=true}
+    CTRL->>ALF: outcome=VALID
+    ALF->>ALF: write audit log entry
+    CTRL-->>C: HTTP 200\n{imei:"490154203237518", valid:true}\nX-Correlation-ID: <uuid>
+
+    Note over C,MET: Invalid IMEI path
+    C->>CTRL: POST /api/v1/devices/validate-imei\n{imei: "490154203237519"}
+    CTRL->>SVC: validate("490154203237519")
+    SVC->>SVC: Luhn check FAILS
+    SVC->>MET: counter imei.validation.failure++
+    SVC-->>CTRL: ImeiValidationResponse{valid=false, reason="Failed Luhn check"}
+    CTRL-->>C: HTTP 200\n{valid:false, reason:"Failed Luhn check"}
